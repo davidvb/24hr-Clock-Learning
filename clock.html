@@ -346,6 +346,7 @@
       const nextHour12 = nextHour%12 || 12;
       if (m === 0) return `${hour12} uur`;
       if (m === 15) return `kwart over ${hour12}`;
+      if (m === 20) return `tien voor half ${nextHour12}`;
       if (m === 25) return `vijf voor half ${nextHour12}`;
       if (m === 30) return `half ${nextHour12}`;
       if (m === 35) return `vijf over half ${nextHour12}`;
