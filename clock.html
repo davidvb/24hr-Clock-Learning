@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>24-Hour Swiss Style Clock</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    .top-bar {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+    }
+    .toggle-btn {
+      font-size: 0.9rem;
+      padding: 0.3rem 0.7rem;
+      background: none;
+      color: #fff;
+      border: 1px solid #fff;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .digital-time {
+      font-size: 3rem;
+      font-weight: 300;
+      margin-bottom: 1.5rem;
+      cursor: pointer;
+    }
+    .clock {
+      position: relative;
+      width: 75vmin;
+      height: 75vmin;
+      max-width: 500px;
+      max-height: 500px;
+      border: 6px solid #fff;
+      border-radius: 50%;
+      background: #101010;
+      grab-circle-size: 10%;
+
+    }
+    .minute-ticks {
+      position: absolute;
+      width: 104%;
+      height: 104%;
+      top: -2.5px;
+      left: -7px;
+      pointer-events: none;
+    }
+    .minute-tick {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform-origin: center -50%;
+      background: #fff;
+      opacity: 0.7;
+    }
+    .minute-tick.thick { width: 3px; height: 7px; border-radius: 1.5px; }
+    .minute-tick.thin { width: 1px; height: 4px; border-radius: 1px; }
+    .numbers, .numbers-24 {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: -6px;
+      left: -5px;
+      pointer-events: none;
+    }
+    .numbers div, .numbers-24 div {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      font-size: 1.2rem;
+      font-weight: 400;
+    }
+    .numbers-24 div { font-size: 0.8rem; opacity: 0.7; }
+
+    .hand {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform-origin: 0% 50%;
+      transition: transform 0.2s ease-out;
+    }
+    .hand.hour { width: 33%; height: 8px; background: red; border-radius: 4px; }
+    .hand.minute { width: 43%; height: 6px; background: rgba(255,255,255,0.85); border-radius: 3px; }
+
+   /* Grab circle at the tip of the hour hand */
+.hand.hour::after {
+  content: "";
+  position: absolute;
+  left: 100%; /* keep circle exactly at tip */
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--grab-circle-size) * 1.2); /* 20% bigger */
+  height: calc(var(--grab-circle-size) * 1.2);
+  border: 2px dashed red;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.75; /* 75% transparent */
+  box-sizing: border-box;
+}
+
+/* Grab circle at the tip of the minute hand */
+.hand.minute::after {
+  content: "";
+  position: absolute;
+  left: 100%; /* keep circle exactly at tip */
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--grab-circle-size) * 1.2); /* 20% bigger */
+  height: calc(var(--grab-circle-size) * 1.2);
+  border: 2px dashed white;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.75; /* 75% transparent */
+  box-sizing: border-box;
+}
+
+    .handle {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.01);
+      touch-action: none;
+      cursor: grab;
+    }
+    .center-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <button class="toggle-btn" id="toggleFormat">24h</button>
+  </div>
+  <div class="digital-time" id="digital">00:00</div>
+  <div class="clock" id="clock">
+    <div class="minute-ticks"></div>
+    <div class="numbers"></div>
+    <div class="numbers-24"></div>
+    <div class="hand hour" id="hour-hand"></div>
+    <div class="handle" id="hour-handle"></div>
+    <div class="hand minute" id="minute-hand"></div>
+    <div class="handle" id="minute-handle"></div>
+    <div class="center-dot"></div>
+  </div>
+
+  <script>
+    const clock = document.getElementById("clock");
+    const ticksContainer = document.querySelector(".minute-ticks");
+    const numbersContainer = document.querySelector(".numbers");
+    const numbers24Container = document.querySelector(".numbers-24");
+    const digital = document.getElementById("digital");
+    const hourHand = document.getElementById("hour-hand");
+    const minuteHand = document.getElementById("minute-hand");
+    const hourHandle = document.getElementById("hour-handle");
+    const minuteHandle = document.getElementById("minute-handle");
+    const toggleBtn = document.getElementById("toggleFormat");
+
+    let use24h = true;
+    toggleBtn.onclick = () => {
+      use24h = !use24h;
+      toggleBtn.textContent = use24h ? "24h" : "AM/PM";
+      draw24hNumbers();
+      updateClock();
+    };
+
+    function drawMinuteTicks() {
+      const rect = clock.getBoundingClientRect();
+      const cx = rect.width / 2, cy = rect.height / 2;
+      ticksContainer.innerHTML = "";
+      for (let i = 0; i < 60; i++) {
+        const div = document.createElement("div");
+        const angle = i * 6;
+        const tickType = i % 5 === 0 ? "thick" : "thin";
+        div.className = `minute-tick ${tickType}`;
+        div.style.transform = `rotate(${angle}deg) translate(-50%, -${cy - 5}px)`;
+        ticksContainer.appendChild(div);
+      }
+    }
+
+    function drawNumbers() {
+      const rect = clock.getBoundingClientRect();
+      const cx = rect.width / 2, cy = rect.height / 2;
+      numbersContainer.innerHTML = "";
+      for (let i = 1; i <= 12; i++) {
+        const theta = ((i - 3) * 30 * Math.PI) / 180;
+        const x = cx + Math.cos(theta) * (cx - 30);
+        const y = cy + Math.sin(theta) * (cy - 30);
+        const div = document.createElement("div");
+        div.innerText = i;
+        div.style.left = x + "px";
+        div.style.top = y + "px";
+        numbersContainer.appendChild(div);
+      }
+    }
+
+    function draw24hNumbers() {
+      const rect = clock.getBoundingClientRect();
+      const cx = rect.width / 2, cy = rect.height / 2;
+      numbers24Container.innerHTML = "";
+      if (!use24h) return;
+      for (let i = 13; i <= 24; i++) {
+        const theta = ((i - 12 - 3) * 30 * Math.PI) / 180;
+        const x = cx + Math.cos(theta) * (cx - 55);
+        const y = cy + Math.sin(theta) * (cy - 55);
+        const div = document.createElement("div");
+        div.innerText = i;
+        div.style.left = x + "px";
+        div.style.top = y + "px";
+        numbers24Container.appendChild(div);
+      }
+    }
+    drawMinuteTicks();
+    drawNumbers();
+    draw24hNumbers();
+
+    const now = new Date();
+    let time = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+
+    function updateClock() {
+      const hour12 = time % 12;
+      const hourAngle = -90 + (hour12 / 12) * 360;
+      const minuteAngle = -90 + ((time * 60) % 60) * 6;
+
+      hourHand.style.transform = `translateY(-50%) rotate(${hourAngle}deg)`;
+      minuteHand.style.transform = `translateY(-50%) rotate(${minuteAngle}deg)`;
+
+      const hours24 = Math.floor(time) % 24;
+      const mins = Math.floor((time * 60) % 60);
+      let displayHour = hours24;
+      let suffix = "";
+      if (!use24h) {
+        suffix = hours24 >= 12 ? " PM" : " AM";
+        displayHour = hours24 % 12 || 12;
+      }
+      digital.textContent = `${String(displayHour).padStart(2,"0")}:${String(mins).padStart(2,"0")}${suffix}`;
+      positionHandles(hourAngle, minuteAngle);
+    }
+
+    function positionHandles(hourAngle, minuteAngle) {
+      const rect = clock.getBoundingClientRect();
+      const cx = rect.width / 2, cy = rect.height / 2;
+
+      const hourRad = (hourAngle * Math.PI) / 180;
+      const hourX = cx + Math.cos(hourRad) * rect.width * 0.35;
+      const hourY = cy + Math.sin(hourRad) * rect.width * 0.35;
+      hourHandle.style.left = hourX + "px";
+      hourHandle.style.top  = hourY + "px";
+
+      const minuteRad = (minuteAngle * Math.PI) / 180;
+      const minuteX = cx + Math.cos(minuteRad) * rect.width * 0.45;
+      const minuteY = cy + Math.sin(minuteRad) * rect.width * 0.45;
+      minuteHandle.style.left = minuteX + "px";
+      minuteHandle.style.top  = minuteY + "px";
+    }
+    updateClock();
+
+    function getAngleFromCenter(e) {
+      const r = clock.getBoundingClientRect();
+      const x = (e.touches ? e.touches[0].clientX : e.clientX) - (r.left + r.width/2);
+      const y = (e.touches ? e.touches[0].clientY : e.clientY) - (r.top + r.height/2);
+      return ((Math.atan2(y,x)*180)/Math.PI + 360)%360;
+    }
+
+    let dragTarget = null;
+    let lastMinuteAngle = null;
+
+    function startDrag(e, target) {
+      dragTarget = target;
+      lastMinuteAngle = null;
+      hourHand.style.transition = "none";
+      minuteHand.style.transition = "none";
+      document.addEventListener("pointermove", onDrag, { passive: false });
+      document.addEventListener("pointerup", endDrag);
+      e.preventDefault();
+    }
+    hourHandle.addEventListener("pointerdown", (e)=>startDrag(e,"hour"));
+    minuteHandle.addEventListener("pointerdown", (e)=>startDrag(e,"minute"));
+
+    function onDrag(e) {
+      e.preventDefault();
+      const angle = getAngleFromCenter(e);
+      if (dragTarget === "minute") {
+        const adjustedAngle = (angle + 90) % 360;
+        const newMinutes = adjustedAngle / 6;
+        if (lastMinuteAngle === null) lastMinuteAngle = newMinutes;
+        let diff = newMinutes - lastMinuteAngle;
+        if (diff > 30) diff -= 60;
+        if (diff < -30) diff += 60;
+        time = (time + diff/60 + 24)%24;
+        lastMinuteAngle = newMinutes;
+      }
+      if (dragTarget === "hour") {
+        const adjustedAngle = (angle + 90) % 360;
+        const hour12 = (adjustedAngle/360)*12;
+        const currentHour24 = time % 24;
+        const currentPeriod = Math.floor(currentHour24/12)*12;
+        time = currentPeriod + hour12;
+        if (time >= 24) time -= 24;
+        if (time < 0) time += 24;
+      }
+      updateClock();
+    }
+
+    function endDrag() {
+      const hours = Math.floor(time);
+      const minutes = Math.round((time - hours)*60);
+      time = (hours + minutes/60) % 24;
+      dragTarget = null;
+      hourHand.style.transition = "transform 0.2s ease-out";
+      minuteHand.style.transition = "transform 0.2s ease-out";
+      updateClock();
+      document.removeEventListener("pointermove", onDrag);
+      document.removeEventListener("pointerup", endDrag);
+    }
+
+    // --- Dutch speech
+    function getDutchTimePhrase(h,m) {
+      const nextHour = (h+1)%24;
+      const hour12 = h%12 || 12;
+      const nextHour12 = nextHour%12 || 12;
+      if (m === 0) return `${hour12} uur`;
+      if (m === 15) return `kwart over ${hour12}`;
+      if (m === 30) return `half ${nextHour12}`;
+      if (m === 45) return `kwart voor ${nextHour12}`;
+      if (m < 30) return `${m} over ${hour12}`;
+      if (m > 30) return `${60-m} voor ${nextHour12}`;
+    }
+    let dutchVoice = null;
+    function loadVoices(){
+      const voices = speechSynthesis.getVoices();
+      dutchVoice = voices.find(v=>v.name==="Xander"&&v.lang==="nl-NL")||voices.find(v=>v.lang==="nl-NL");
+    }
+    speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+    digital.addEventListener("click",()=>{
+      const hours24 = Math.floor(time)%24;
+      const mins = Math.floor((time*60)%60);
+      const phrase = getDutchTimePhrase(hours24, mins);
+      const utterance = new SpeechSynthesisUtterance(phrase);
+      utterance.lang="nl-NL";
+      if (dutchVoice) utterance.voice=dutchVoice;
+      speechSynthesis.speak(utterance);
+    });
+
+    // optional: adjust circle size based on clock size
+    function updateCircleSize() {
+      const w = clock.getBoundingClientRect().width;
+      const px = Math.max(24, w * 0.08);
+      clock.style.setProperty("--grab-circle-size", px + "px");
+    }
+    updateCircleSize();
+    window.addEventListener("resize", updateCircleSize);
+  </script>
+</body>
+</html>
